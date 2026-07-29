@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+knowledge_base/*
+!knowledge_base/.gitkeep
+.rag_cache.pkl
+__pycache__/
+*.pyc
+.venv/
+nginx/certs/*
+.git

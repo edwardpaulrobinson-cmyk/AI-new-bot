@@ -1,0 +1,46 @@
+services:
+  # PUBLIC, client-facing app: Query Interface only. Exposed via nginx (TLS).
+  public:
+    build: .
+    environment:
+      - APP_FILE=public_app.py
+      - PORT=8501
+    env_file: .env
+    volumes:
+      - kb_data:/app/knowledge_base    # shared with admin: uploads reach clients
+      - logs_data:/app/logs            # shared with admin: questions reach the dashboard
+    expose:
+      - "8501"                         # internal only; reachable through nginx
+    restart: unless-stopped
+
+  # INTERNAL admin app: ingestion + dashboard + logs. NOT exposed to the internet.
+  admin:
+    build: .
+    environment:
+      - APP_FILE=admin_app.py
+      - PORT=8502
+    env_file: .env
+    volumes:
+      - kb_data:/app/knowledge_base
+      - logs_data:/app/logs
+    ports:
+      - "127.0.0.1:8502:8502"          # bound to LOCALHOST of the host only.
+                                       # Admins reach it via SSH tunnel / VPN, never the internet.
+    restart: unless-stopped
+
+  # TLS reverse proxy -> ONLY the public app is on the internet.
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - public
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+
+volumes:
+  kb_data:
+  logs_data:

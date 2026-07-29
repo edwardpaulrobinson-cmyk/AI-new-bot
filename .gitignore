@@ -1,0 +1,21 @@
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Runtime
+knowledge_base/*
+!knowledge_base/.gitkeep
+.rag_cache.pkl
+__pycache__/
+*.pyc
+.venv/
+
+# TLS material
+nginx/certs/*
+!nginx/certs/.gitkeep
+
+# Docker secret files
+secrets/*
+!secrets/.gitkeep

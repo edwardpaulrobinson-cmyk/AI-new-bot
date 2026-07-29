@@ -1,0 +1,21 @@
+# Streamlit configuration for the GNB Property assistant.
+# Place this file at:  AI Bot\.streamlit\config.toml
+
+[server]
+headless = true
+enableXsrfProtection = true
+maxUploadSize = 25
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = "none"
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#185FA5"
+backgroundColor = "#E6EBF2"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1A2230"
