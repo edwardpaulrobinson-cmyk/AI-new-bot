@@ -8,7 +8,7 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 
-sys.path.append(os.path.dirname(os.path.dirname(file)))
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import config
 import rag
 import media
@@ -182,11 +182,11 @@ _gk = config.get_secret("GEMINI_API_KEY")
 _gemini_keys = [("Gemini", _gk)] if _gk else []
 _n = 2
 while True:
-_k = config.get_secret(f"GEMINI_API_KEY_{_n}")
-        if not _k:
-            break
-        _gemini_keys.append((f"Gemini{_n}", _k))
-        _n += 1
+k = config.get_secret(f"GEMINI_API_KEY_{_n}")
+if not _k:
+break
+_gemini_keys.append((f"Gemini{_n}", _k))
+_n += 1
 logging.info(f"Loaded {len(_gemini_keys)} Gemini API keys.")
 for _gname, _gkey in _gemini_keys:
 clients[_gname] = {"client": genai.Client(api_key=_gkey, http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT * 1000)), "model": GEMINI_MODEL, "kind": "gemini"}
@@ -278,31 +278,26 @@ user += "RECENT CONVERSATION:\n" + recent + "\n\n"
 user += "QUESTION:\n" + question + "\n\nREFERENCE PASSAGES:\n" + (context_text or "(none)")
 
 for name, pdata in _ordered_clients(TRIAGE_ORDER):
-        try:
-            if pdata.get("kind") == "gemini":
-                resp = pdata["client"].models.generate_content(
-                    model=pdata["model"],
-                    contents=[types.Content(role="user", parts=[types.Part.from_text(text=user)])],
-                    config=types.GenerateContentConfig(system_instruction=sys_rules, temperature=0.0),
-                )
-                out = (getattr(resp, "text", "") or "").strip()
-            else:
-                resp = pdata["client"].chat.completions.create(
-                    model=pdata["model"],
-                    messages=[
-                        {"role": "system", "content": sys_rules},
-                        {"role": "user", "content": user},
-                    ],
-                    temperature=0.0,
-                    timeout=REQUEST_TIMEOUT,
-                )
-                out = ((resp.choices[0].message.content or "") if resp.choices else "").strip()
-            if out:
-                return out
-        except Exception as e:
-            safe_error(e, context=f"triage={name}")
-            continue
-    return "ANSWER"  # fail open — never block a good answer on a routing hiccup
+try:
+if pdata.get("kind") == "gemini":
+resp = pdata["client"].models.generate_content(
+model=pdata["model"],
+contents=[types.Content(role="user", parts=[types.Part.from_text(text=user)])],
+config=types.GenerateContentConfig(system_instruction=sys_rules, temperature=0.0))
+out = (getattr(resp, "text", "") or "").strip()
+else:
+resp = pdata["client"].chat.completions.create(
+model=pdata["model"],
+messages=[{"role": "system", "content": sys_rules},
+{"role": "user", "content": user}],
+temperature=0.0, timeout=REQUEST_TIMEOUT)
+out = ((resp.choices[0].message.content or "") if resp.choices else "").strip()
+if out:
+return out
+except Exception as e:
+safe_error(e, context=f"triage={name}")
+continue
+return "ANSWER"  # fail open — never block a good answer on a routing hiccup
 
 _base_path = os.path.join(KB_DIR, config.BASE_CONTEXT_FILE)
 base_text = parse_file(_base_path).strip() if os.path.exists(_base_path) else ""
