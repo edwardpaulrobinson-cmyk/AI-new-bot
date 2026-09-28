@@ -254,56 +254,79 @@ Rules:
 
     for name, pdata in _ordered_clients(TRIAGE_ORDER):
         try:
-            if pdata.get("kind") == "gemini":
-    import time
-    from google.genai.errors import ClientError, ServerError
+            for name, pdata in _ordered_clients(TRIAGE_ORDER):
+    try:
+        if pdata.get("kind") == "gemini":
+            import time
+            from google.genai.errors import ClientError, ServerError
 
-    wait = 2
+            wait = 2
+            out = ""
 
-    for attempt in range(4):
-        try:
-            resp = pdata["client"].models.generate_content(
+            for attempt in range(4):
+                try:
+                    resp = pdata["client"].models.generate_content(
+                        model=pdata["model"],
+                        contents=[
+                            types.Content(
+                                role="user",
+                                parts=[types.Part.from_text(text=user)]
+                            )
+                        ],
+                        config=types.GenerateContentConfig(
+                            system_instruction=sys_rules,
+                            temperature=0.0,
+                        ),
+                    )
+
+                    out = (getattr(resp, "text", "") or "").strip()
+                    break
+
+                except ClientError as e:
+                    # 429 = this Gemini key has reached its quota.
+                    # Raise it so the waterfall moves to Gemini2, Gemini3, etc.
+                    if e.status_code == 429:
+                        raise
+                    raise
+
+                except ServerError as e:
+                    # Retry temporary Gemini outages.
+                    if e.status_code in (503, 504):
+                        logging.warning(
+                            f"Gemini {e.status_code}. Retry {attempt + 1}/4"
+                        )
+                        time.sleep(wait)
+                        wait *= 2
+                        continue
+                    raise
+
+            if not out:
+                raise RuntimeError("Gemini retries exhausted.")
+
+        else:
+            resp = pdata["client"].chat.completions.create(
                 model=pdata["model"],
-                contents=[types.Content(role="user", parts=[types.Part.from_text(text=user)])],
-                config=types.GenerateContentConfig(
-                    system_instruction=sys_rules,
-                    temperature=0.0
-                )
+                messages=[
+                    {"role": "system", "content": sys_rules},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0.0,
+                timeout=REQUEST_TIMEOUT,
             )
-            out = (getattr(resp, "text", "") or "").strip()
-            break
+            out = (
+                (resp.choices[0].message.content or "")
+                if resp.choices
+                else ""
+            ).strip()
 
-        except ClientError as e:
-            # 429 = this API key has reached its quota.
-            # Let the existing provider waterfall move to Gemini2, Gemini3, etc.
-            if e.status_code == 429:
-                raise
-            raise
+        if out:
+            return out
 
-        except ServerError as e:
-            # Retry temporary Gemini outages.
-            if e.status_code in (503, 504):
-                logging.warning(f"Gemini {e.status_code}. Retry {attempt + 1}/4")
-                time.sleep(wait)
-                wait *= 2
-                continue
-            raise
-    else:
-        raise RuntimeError("Gemini retries exhausted.")
-            else:
-                resp = pdata["client"].chat.completions.create(
-                    model=pdata["model"],
-                    messages=[{"role": "system", "content": sys_rules},
-                              {"role": "user", "content": user}],
-                    temperature=0.0, timeout=REQUEST_TIMEOUT)
-                out = ((resp.choices[0].message.content or "") if resp.choices else "").strip()
-            if out:
-                return out
-        except Exception as e:
-            safe_error(e, context=f"triage={name}")
-            continue
-    return "ANSWER"  # fail open — never block a good answer on a routing hiccup
+    except Exception as e:
+        safe_error(e, context=f"triage={name}")
+        continue
 
+return "ANSWER"
 
 _base_path = os.path.join(KB_DIR, config.BASE_CONTEXT_FILE)
 base_text = parse_file(_base_path).strip() if os.path.exists(_base_path) else ""
