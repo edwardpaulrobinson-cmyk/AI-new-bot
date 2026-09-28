@@ -253,8 +253,6 @@ Rules:
     user += "QUESTION:\n" + question + "\n\nREFERENCE PASSAGES:\n" + (context_text or "(none)")
 
     for name, pdata in _ordered_clients(TRIAGE_ORDER):
-        try:
-            for name, pdata in _ordered_clients(TRIAGE_ORDER):
     try:
         if pdata.get("kind") == "gemini":
             import time
