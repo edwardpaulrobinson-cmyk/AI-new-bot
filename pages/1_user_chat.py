@@ -157,6 +157,7 @@ def build_clients():
             break
         _gemini_keys.append((f"Gemini{_n}", _k))
         _n += 1
+      logging.info(f"Loaded {len(_gemini_keys)} Gemini API keys.")
     for _gname, _gkey in _gemini_keys:
         clients[_gname] = {"client": genai.Client(api_key=_gkey, http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT * 1000)), "model": GEMINI_MODEL, "kind": "gemini"}
         health[_gname] = "Active"
@@ -254,11 +255,41 @@ Rules:
     for name, pdata in _ordered_clients(TRIAGE_ORDER):
         try:
             if pdata.get("kind") == "gemini":
-                resp = pdata["client"].models.generate_content(
-                    model=pdata["model"],
-                    contents=[types.Content(role="user", parts=[types.Part.from_text(text=user)])],
-                    config=types.GenerateContentConfig(system_instruction=sys_rules, temperature=0.0))
-                out = (getattr(resp, "text", "") or "").strip()
+    import time
+    from google.genai.errors import ClientError, ServerError
+
+    wait = 2
+
+    for attempt in range(4):
+        try:
+            resp = pdata["client"].models.generate_content(
+                model=pdata["model"],
+                contents=[types.Content(role="user", parts=[types.Part.from_text(text=user)])],
+                config=types.GenerateContentConfig(
+                    system_instruction=sys_rules,
+                    temperature=0.0
+                )
+            )
+            out = (getattr(resp, "text", "") or "").strip()
+            break
+
+        except ClientError as e:
+            # 429 = this API key has reached its quota.
+            # Let the existing provider waterfall move to Gemini2, Gemini3, etc.
+            if e.status_code == 429:
+                raise
+            raise
+
+        except ServerError as e:
+            # Retry temporary Gemini outages.
+            if e.status_code in (503, 504):
+                logging.warning(f"Gemini {e.status_code}. Retry {attempt + 1}/4")
+                time.sleep(wait)
+                wait *= 2
+                continue
+            raise
+    else:
+        raise RuntimeError("Gemini retries exhausted.")
             else:
                 resp = pdata["client"].chat.completions.create(
                     model=pdata["model"],
