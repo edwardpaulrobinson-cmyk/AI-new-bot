@@ -8,7 +8,7 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(os.path.dirname(os.path.dirname(file)))
 import config
 import rag
 import media
@@ -182,7 +182,7 @@ _gk = config.get_secret("GEMINI_API_KEY")
 _gemini_keys = [("Gemini", _gk)] if _gk else []
 _n = 2
 while True:
-k = config.get_secret(f"GEMINI_API_KEY_{_n}")
+k = config.get_secret(f"GEMINI_API_KEY{_n}")
 if not _k:
 break
 _gemini_keys.append((f"Gemini{_n}", _k))
